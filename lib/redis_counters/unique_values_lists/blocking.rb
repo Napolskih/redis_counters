@@ -19,14 +19,14 @@ module RedisCounters
 
       # Public: Проверяет существует ли заданное значение.
       #
-      # value_params - Hash - параметры значения.
+      # params - Hash - параметры кластера и значения.
       #
       # Returns Boolean.
       #
-      def has_value?(value_params)
-        all_partitions.reverse.any? do |partition|
-          redis.sismember(key(partition), value(value_params))
-        end
+      def has_value?(params)
+        set_params(params)
+        reset_partitions_cache
+        value_already_exists?
       end
 
       # Public: Нетранзакционно удаляет данные конкретной конечной партиции.
@@ -57,17 +57,21 @@ module RedisCounters
 
       def key(partition = partition_params, cluster = cluster_params)
         return super if use_partitions?
+
+        raise 'Array required' if partition && !partition.is_a?(Array)
+        raise 'Array required' if cluster && !cluster.is_a?(Array)
+
         [counter_name, cluster, partition].flatten.compact.join(key_delimiter)
       end
 
       def process_value
         loop do
-          reset_partitions_cache
+          before_add_value
 
           watch_partitions_list
           watch_all_partitions
 
-          if current_value_already_exists?
+          if value_already_exists?
             redis.unwatch
             return false
           end
@@ -80,6 +84,10 @@ module RedisCounters
 
           return true if result.present?
         end
+      end
+
+      def before_add_value
+        reset_partitions_cache
       end
 
       def reset_partitions_cache
@@ -97,8 +105,10 @@ module RedisCounters
         end
       end
 
-      def current_value_already_exists?
-        has_value?(params)
+      def value_already_exists?
+        all_partitions.reverse.any? do |partition|
+          redis.sismember(key(partition), value)
+        end
       end
 
       def add_value
@@ -112,8 +122,7 @@ module RedisCounters
         @partitions = redis.lrange(partitions_list_key(cluster), 0, -1)
         @partitions = @partitions.map do |partition|
           partition.split(key_delimiter, -1)
-        end
-          .delete_if(&:empty?)
+        end.delete_if(&:empty?)
       end
 
       def add_partition
@@ -123,6 +132,8 @@ module RedisCounters
       end
 
       def partitions_list_key(cluster = cluster_params)
+        raise 'Array required' if cluster && !cluster.is_a?(Array)
+
         [counter_name, cluster, PARTITIONS_LIST_POSTFIX].flatten.join(key_delimiter)
       end
 
@@ -141,7 +152,6 @@ module RedisCounters
       # Если партиция не указана, возвращает все партиции кластера (все партиции, если нет кластеризации).
       #
       # params  - Hash - хеш параметров, определяющий кластер и партицию.
-      # parts   - Array of Hash - список партиций.
       #
       # Returns Array of Hash.
       #

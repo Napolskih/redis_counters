@@ -3,6 +3,7 @@ require 'bundler/setup'
 require 'rspec'
 require 'simplecov'
 require 'mock_redis'
+require 'timecop'
 
 SimpleCov.start('test_frameworks')
 

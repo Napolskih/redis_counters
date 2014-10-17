@@ -6,6 +6,7 @@ require 'redis_counters/unique_hash_counter'
 require 'redis_counters/unique_values_lists/base'
 require 'redis_counters/unique_values_lists/blocking'
 require 'redis_counters/unique_values_lists/non_blocking'
+require 'redis_counters/unique_values_lists/expirable'
 
 require 'active_support/core_ext'
 
